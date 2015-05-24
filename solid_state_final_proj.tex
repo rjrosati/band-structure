@@ -1,0 +1,201 @@
+\documentclass[12pt]{article}
+
+\usepackage[margin=1 in]{geometry}
+
+%Use Times New Roman font
+%\usepackage{pslatex}
+
+% allow text colors
+\usepackage[usenames,dvipsnames,svgnames,table,x11names]{xcolor}
+
+%allow double-spacing
+\usepackage{setspace}
+
+%enable support for figures
+\usepackage{graphicx}
+
+\usepackage{rotating}
+\usepackage{multirow}
+
+%math
+%\usepackage{mathtools}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{lipsum}
+
+%control figure movement
+\usepackage{placeins}
+
+%center captions
+\usepackage{caption}
+
+%circuits and units
+%\usepackage[free-standing-units]{siunitx}
+%\usepackage[americanvoltages,americancurrents]{circuitikz}
+%\usetikzlibrary{calc}
+
+% make scientific notation easy
+\providecommand{\e}[1]{\ensuremath{\times 10^{#1}}}
+
+%for loops
+\usepackage{pgffor}
+
+%indent after new sections
+\usepackage{indentfirst}
+
+\usepackage{verbatim}
+
+% allow greek letters outside math mode. \text<name of letter>
+\usepackage{textgreek}
+
+% margin editing
+\usepackage{changepage}
+
+% braket notation, other goodies
+\usepackage{physics}
+\usepackage{braket}
+
+% bibtex support
+\usepackage{natbib}
+
+%source code
+\usepackage{listings}
+
+%hyperlink support
+\usepackage{hyperref}
+
+
+%settings for Python code
+\lstset{basicstyle=\footnotesize\ttfamily,
+commentstyle=\color{OliveGreen},
+keywordstyle=\color{blue},
+tabsize=4,
+numbers=left,
+stringstyle=\color{red},
+language=Python,
+inputencoding=utf8,
+extendedchars=true,
+showstringspaces=flase,
+}
+
+\doublespacing
+
+\begin{document}
+\singlespacing
+\title{Solid State I - Final Project}
+\date{May 12 2015}
+\author{Robert Rosati}
+\maketitle
+
+\begin{abstract}
+\par This project sought to explore electronic band structure theory and practical methods of band structure computation. From first principles, the existence of electronic band structure is shown and, after a series of approximations, an algorithm developped to find it numerically. I further refined the algorithm and coded it in Python, and used the code to find the band structure of Aluminum in agreement with the text and reference data.
+\end{abstract}
+
+\doublespacing
+
+\section{Schr\"{o}dinger's Equation in a Lattice}
+\par Band structure theory arises from considering Schr\"{o}dinger's equation for an electron in a Bravais lattice. 
+%Bloch's theorem essentially states that in a periodic potential, all solutions to Sch\"{o}dinger's equation will have a component with the same periodicity as the potential modulated by a free-particle component.
+In Fourier space, Schr\"{o}dinger's equation can be expressed:
+%A sketch of the relevant parts of the proof follows, following Marder \cite{text}. Consider an electron moving in a Bravais lattice with a periodic potential, $U(\vec{r}) = U(\vec{r}+\vec{R})$, for all $\vec{R}$ in a Bravais lattice. Take the lattice to be one-dimensional, with a period of length $a$, and periodic boundary conditions at length $L$. Then the wavefunction must be continuous $\psi(x) = \psi(x+L)$, and is therefore periodic with period $L$, and can be written a sum of Fourier components $\psi (x) = 1/\sqrt{L} \sum_{q^\prime} \psi(q^\prime)e^{iq^\prime x}$, where the $q^\prime$ are interger multiples of $2 \pi / L$. $U$ is periodic in $a$, so it also can be expressed in Fourier components $U(x) = \sum_K U_K e^{iKx}$. Writing out the Hamiltonian,
+\begin{align}
+\left( \frac{\hbar^2 q^2}{2 m_e} - \varepsilon \right) \psi (\vec{q}) + \sum_{\vec{K}} \psi(\vec{q}-\vec{K}) U_{\vec{K}} &= 0
+\label{eq:fouH}
+\end{align}
+where the $\vec{K}$ are reciprocal lattice sites, $U_{\vec{K}}$ the potential in Fourier space, and the $\vec{q}$ electron wavenumbers. Or in Dirac notation,
+\begin{equation}
+\begin{aligned}
+H = \sum_{\vec{q}^{\, \prime}} \ket{\vec{q}^{\, \prime}} \frac{\hbar^2 q^2}{2 m_e} \bra{\vec{q}^{\, \prime}} + &\sum_{\vec{q}^{\, \prime} \vec{K}^{\, \prime}} \ket{\vec{q}^{\, \prime}} U_{\vec{K}^{\, \prime}} \bra{\vec{q}^{\, \prime} - \vec{K}^{\, \prime}} \\
+\bra{\vec{q}\,}H\ket{\psi} &= \varepsilon \ket{\psi}
+\end{aligned}
+\label{eq:diracH}
+\end{equation}
+\par Note translating $\vec{q}$ by a reciprocal lattice vector $\vec{q}+\vec{K}$ leaves the Fourier components of $\psi$ unchanged. To see this, following Marder, use equation (\ref{eq:fouH}):
+\begin{align*}
+(\varepsilon_{\vec{q}+\vec{K}}^0-\varepsilon)\psi(\vec{q}+\vec{K}) + &\sum_{\vec{K}^{\, \prime}} \psi(\vec{q}+\vec{K}-\vec{K}^{\, \prime}) U_{\vec{K}} = 0 \\
+(\varepsilon_{\vec{q}+\vec{K}}^0-\varepsilon)\psi(\vec{q}+\vec{K}) + &\sum_{\vec{K}^{\, \prime}} \psi(\vec{q}-\vec{K}^{\, \prime}) U_{\vec{K}^{\, \prime}+\vec{K}} = 0
+\end{align*}
+where $\varepsilon_q^0 = \frac{\hbar^2 q^2}{2m}$ and the second line relabels the summation index $\vec{K}^{\, \prime}$ to $\vec{K}^{\, \prime} - \vec{K}$. The second line is a different equation than (\ref{eq:fouH}) with a different solution, but involves the same Fourier components of $\psi$. Therefore multiple solutions to Schr\"{o}dinger's equation exist, with independent energy eigenvalues. These are termed bands, and their eigenvalues and eigenvectors are conventionally labelled $\varepsilon_{nk}$ and $\psi_{nk}$ respectively.
+\par By the argument above, any two $\vec{q}$ that differ precisely by a reciprocal lattice vector are physically indistinguishable from two $\vec{q}$ at the same lattice site but in different bands (i.e. $\psi_{n,\vec{k} + \vec{K}} = \psi_{n^{\prime},\vec{k}}$ with $n \neq n^{\prime}$). It is customary to take all components of $\vec{k}$ in the interval $\left[ 0, 2\pi/a \right]$, between the origin and the first reciprocal lattice site in the all-positive-coordinates direction. This is termed the first Brillouin zone.
+%Note that $\psi(\vec{q})$ is only nonzero for discrete values of $\vec{q}$ for WHY, and that translating $\vec{q}$ by a reciprocal lattice vector leaves the Fourier components of $\psi$ unchanged (equivalent to a relabeling of summation index).
+
+
+\section{Band Structure}
+\par Electronic band structure is capable of predicting a wide range of material properties if known. The density of energy states is related to $\frac{d\varepsilon}{dk}$, and is directly related to specific heat among other properties. Perhaps the most easily visible information from a band structure plot is whether or not the material is a conductor or an insulator. Though not always preserved by the approximations used to make band structure computations tractable, the gap between a material's highest energy level below the Fermi energy and the lowest level above it in large part determines the conductivity of the material. A larger gap makes the material more insulating, while a smaller or nonexistent gap allows more electrons to move freely. Given an effective potential for the outermost electron, the Fermi energy can be computed as $\frac{1}{\Omega} U_{\textrm{eff}}(\vec{k}=0) = -\frac{2}{3} \varepsilon_F$, where $\Omega$ is the volume of a unit cell \cite{text}.
+
+\section{Computation}
+\par The potential in (\ref{eq:fouH}) has, in gerneral, $O(N^{Z N})$ electron-electron interactions, where $Z$ is the atomic number of the lattice material and $N$ the number of lattice sites in the simulation. A common approximation is to assume that only the valenence electron at each lattice site has any kinetic energy. This approximation is particularly good for materials like alkali metals, where the inner electrons are much more tightly bound the valence electron. The effect of the core electrons is to screen the charge of the nucleus, and the valence electrons can be modeled as under the influence of a so-called pseudopotential, which effectively dampens the depth of the Coulomb $-k/r$ potential near the origin. See figure \ref{fig:pseudopotential}. This approximation brings the potential complexity to $O(N^N)$; however computing all valence electron - valence electron interactions is still outside the realm of tractability. Treating each electron indpendently brings the complexity to $O(N^2)$, solidly within the reach of modern computers for realistic materials. Perhaps somewhat surprisingly, this approximation gives results in at least qualitative agreement for most materials. Materials with strong electron-electron coupling (like NiO and CuO) are an exception \cite{text}.
+\begin{figure}[!hbt]
+\centering
+\includegraphics[width=0.7\linewidth]{al_pseudopotential.pdf}
+\caption{The Ashcroft or ``empty-core" pseudopoential $U(r) = U_0 e^{-r/d} \frac{\Omega}{4 \pi d^3} \frac{d}{r} \theta(r-R_c)$ with the parameters $U_0$, $d$, and $R_c$ fit from aluminum experimental data. Plot generated with \emph{Mathematica}.}
+\label{fig:pseudopotential}
+\end{figure}
+\par The efficiency of band structure calculation is highly dependent on the basis representation of $H$ and $\psi$. While equation (\ref{eq:fouH}) describes a wavefunction in a plane wave basis, in general this does not guarantee a convergent solution with finitely many Fourier components. Other, more elaborate bases (such as linear-augmented plane waves, LAPW) can provide convergence with fewer components. Such bases are outside the scope of this work and will not be further discussed.
+\subsection{Plane Waves}
+\par The following arguments assume the wavefunction has the same form as in equation (\ref{eq:diracH}) (plane-wave basis). If the Fourier coefficients of $\psi$ drop to some negligibly small value at high frequencies, this problem becomes finite-dimensional.
+%, then the Hamiltonian matrix could be diagonalized, and its eigenvalues would lie along the diagonal. That is, a matrix $S$ can be found so that $S M S^{-1} = \mathcal{H}$, with $M$ diagonal. To find $S$, one could write the $N$ components of $\psi$ as the first column of $S$, and apply the Gram-Schmidt orthogonalization process to successive columns to obtain a suitable $S$. After computing $M = S^{-1} \mathcal{H} S$, the energy eigenvalues of $H$ will lie on its diagonal. There are several methods for efficiently computing the Fourier components of $\psi$, and the performance of a band structure algorithm of this type is heavily dependent on the computation time for $\psi$.
+\par Perhaps the most straightforward method of solving equation (\ref{eq:fouH}) is to attack the k-space Hamiltonian directly. Given the Hamiltonian, $H$, an eigenvector can be found by the following process (as described in Marder, p.273)\cite{text}.
+Guess an eigenstate with N Fourier components, $\vec{\phi_1}$, and compute $H \vec{\phi_1} = \vec{\phi_1}^{\, \prime}$.
+Replace $\vec{\phi_1}$ by $\vec{\phi_1}^{\, \prime}$ and compute $\vec{\phi_1}^{\, \prime\prime}$.
+ After $r$ iterations of this, $\vec{\phi_1} ^{\, (r)} = \sum_{i=1}^N \varepsilon_i^r \hat{\psi_i}(\hat{\psi_i} \cdot \vec{\phi_1})$, where the $\varepsilon_i$ and $\hat{\psi_i}$ are the eigenvalues and eigenvectors.
+If $H$ is offset so that the lowest eigenvalue has the largest amplitude, then the $i=1$ term will dominate the sum as $r \rightarrow \infty$, assuming the randomly chosen $\vec{\phi_1}$ is not orthogonal to $\hat{\psi_1}$, i.e. this process has the effect of amplifying the component of $\vec{\phi_1}$ parallel to the lowest eigenvector. Thus $\vec{\phi_1} ^{\, (r)}$ is proportional to only the first eigenvalue and eigenvector for sufficient $r$, and these can be stored for later use. By using the Gram-Schmidt process, one can obtain a $\vec{\phi_2} = \vec{\phi_1} - \hat{\psi_1}(\hat{\psi_1} \cdot \vec{\phi_1})$ orthogonal to $\hat{\psi_1}$, and repeating the above steps will give the second eigenvalue and eigenvector of the Hamiltonian. This can be repeated until the entire set of $N$ eigenvalues has been exhausted.
+\par One aid in this calculation is that the convolution in the potential term may be replaced by a multiplication in Fourier space. That is,
+\begin{align*}
+\sum_{\vec{q},\vec{K}} U_{\vec{K}} \phi (\vec{q} - \vec{K}) = N^{-3} \mathcal{F}^{-1}\left\lbrace \mathcal{F}\left\lbrace U_{\vec{K}} \right\rbrace \times \mathcal{F}\left\lbrace \phi(\vec{q}) \right\rbrace \right\rbrace
+\end{align*}
+where $\mathcal{F}$ is the Fourier transform. 
+
+\begin{figure}
+\centering
+\includegraphics[width=0.5\linewidth]{high_symmetry_points.png}
+\caption{The first Brillouin zone of face-centered-cubic reciprocal lattice, with high symmetry points marked. In terms of $2 \pi / a$, the points used in the band structure plot below are $L = (\frac{1}{2}, \frac{1}{2}, \frac{1}{2})$, $\Gamma = (0,0,0)$, $X = (0,1,0)$, and $U = (\frac{1}{4}, 1, \frac{1}{4})$ \cite{fccsite}.}
+\label{fig:highsym}
+\end{figure}
+
+\subsection{Linear Algebra Optimization}
+\par The above method is relatively inefficient -- energy eigenvalues are only extracted after tediously computing the eigenfunctions through a slowly-converging series of repeated applications of $H$. If only the eigenvalues of the Hamiltonian are desired, then they can be found through a more direct method, such as writing the Hamiltonian as a matrix, $\mathcal{H}$, and solving its characteristic polynomial: $\textrm{det}(\mathcal{H} - \lambda I_{N} ) = 0$. In the plane wave basis this matrix can be written 
+\begin{equation}
+\begin{aligned}
+\mathcal{H} (\vec{q}^{\, \prime}, \vec{q}) = \bra{\vec{q}^{\, \prime}} H \ket{\vec{q}\,} &= \delta_{\vec{q},\vec{q}^{\, \prime}} \frac{\hbar^2 q^2}{2 m_e} + U_{\vec{K}^{\, \prime}} \delta_{\vec{K}^{\, \prime}, \vec{q}^{\, \prime}-\vec{q}} \\
+&= \delta_{\vec{q},\vec{q}^{\, \prime}} \frac{\hbar^2 q^2}{2 m_e} + U_{\vec{q}^{\, \prime}-\vec{q}}
+\end{aligned}
+\label{eq:matrixH}
+\end{equation}
+ where $H$ is given by equation (\ref{eq:diracH}) and the $\vec{q}$\,s are some vector in the first Brillouin zone plus a reciprocal lattice vector $\vec{q}_n = \vec{k}+\vec{K}_n$. Note that this matrix is symmetric if and only if the potential is symmetric. The pseudopotential in figure \ref{fig:pseudopotential} depends only on the magnitude of $\vec{K}$, so its corresponding $\mathcal{H}$ is symmetric (and entirely real, therefore also Hermitian).
+\begin{comment}
+\begin{align*}
+\mathcal{H} \left( \begin{array}{c}
+\psi (q_0)\\ \psi (q_1) \\ \vdots \\
+\end{array} \right) 
+= \varepsilon \left( 
+\begin{array}{c}
+\psi (q_0)\\ \psi (q_1) \\ \vdots
+\end{array} \right) .
+\end{align*}
+\end{comment}
+While $\mathcal{H}$ is still expressed in the plane wave basis, this approach avoids some of its inherent disadvantages by avoiding the eigenvector computation altogether. It does require more memory, as the Hamiltonian is stored as a matrix and not simply as a function. The memory penalty of storing this matrix should be no more than $8 \textrm{\, bytes} \times N^2$ for a double-precision floating point array. For a run of $N = 12^3 = 1728$ lattice sites, the memory penalty is less than $24 \textrm{\,MB}$ -- negligible on most modern hardware.
+\par Referencing equation (\ref{eq:matrixH}), evaluating the Hamiltonian in a different place in k-space only changes the kinetic terms, which lie along the diagonal. My code takes advantage of this and reuses off-diagonal terms when tracing the band structure plot path. 
+\par One advantage of this approach is that quite efficient, parallelized Hermitian matrix eigenvalue solvers exist in most scientific computing environments. For my implementation I used Python's \texttt{scipy.linalg.eigvalsh}, a wrapper around the Fortran LAPACK library's \texttt{geev} routine \cite{numpyref}.
+%\subsection{Lattice With a Basis}
+% http://www.ece.nus.edu.sg/stfpage/eleadj/pseudopotential.htm
+\section{Code and Plots}
+\par Included below is a minimum subset of code required to produce figure \ref{fig:alplot}, using the matrix eigenvalue technique.
+\singlespacing
+\begin{adjustwidth}{-2em}{0em}
+\lstinputlisting{minimal.py}
+\end{adjustwidth}
+\doublespacing
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.75\linewidth]{al_bands.pdf}
+\caption{The lowest six bands produced by my code for Aluminum, truncating the reciprocal lattice after $N=12$ values for each basis vector ($12^3 = 1728$ reciprocal lattice sites). From the potential $U(\vec{k}=0) \approx -7.8 \textrm{\, eV}$ a Fermi energy $\varepsilon_F = -\frac{3}{2} U(0) \approx 11.7 \textrm{\, eV}$ is calculated. This value is consistent with reference data \cite{Ashcroft76}.}
+\label{fig:alplot}
+\includegraphics[width=0.75\linewidth]{free_particle_bands.pdf}
+\caption{The lowest six bands produced by my code for the free electron in an fcc lattice, truncating the reciprocal lattice after $N=12$ values for each basis vector. This was achieved by modifying the potential in the above code \texttt{\color{blue}{def} \color{black}{U(K):} \color{blue}{return} \color{black}{0}}.}
+\label{fig:fpplot}
+\end{figure}
+\clearpage
+\bibliographystyle{plain}
+\bibliography{research}
+\end{document}
